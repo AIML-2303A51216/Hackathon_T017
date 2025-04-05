@@ -1,0 +1,279 @@
+ #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#define MAX_NAME_LEN 50
+#define MAX_DRUGS 100
+typedef struct {
+    int id;
+    char name[MAX_NAME_LEN];
+    int quantity;
+    float price;
+} Drug;
+typedef struct {
+    int orderID;
+    char customerName[50];
+    char drugName[MAX_NAME_LEN];
+    int quantity;
+    float totalCost;
+    char address[100];
+    char deliveryTime[30];
+    char mobile[15];      
+    char status[10];      
+} Order;
+Drug inventory[MAX_DRUGS];
+int count = 0;
+int orderIDCounter = 1000;
+void loadInventory() {
+    FILE *fp = fopen("inventory.txt", "r");
+    if (fp == NULL) return;
+    while (fscanf(fp, "%d %s %d %f", &inventory[count].id, inventory[count].name,
+                  &inventory[count].quantity, &inventory[count].price) != EOF) {
+        count++;
+    }
+    fclose(fp);
+}
+void saveInventory() {
+    FILE *fp = fopen("inventory.txt", "w");
+    for (int i = 0; i < count; i++) {
+        fprintf(fp, "%d %s %d %.2f\n", inventory[i].id, inventory[i].name,
+                inventory[i].quantity, inventory[i].price);
+    }
+    fclose(fp);
+}
+void addDrug() {
+    if (count >= MAX_DRUGS) {
+        printf("Inventory full!\n");
+        return;
+    }
+    Drug d;
+    printf("Enter Drug ID: ");
+    scanf("%d", &d.id);
+    printf("Enter Drug Name: ");
+    scanf("%s", d.name);
+    printf("Enter Quantity: ");
+    scanf("%d", &d.quantity);
+    printf("Enter Price: ");
+    scanf("%f", &d.price);
+    inventory[count++] = d;
+    saveInventory();
+    printf("Drug added successfully!\n");
+}
+void viewInventory() {
+    printf("\n--- Drug Inventory ---\n");
+    for (int i = 0; i < count; i++) {
+        printf("ID: %d | Name: %s | Qty: %d | Price: ₹%.2f\n",
+               inventory[i].id, inventory[i].name,
+               inventory[i].quantity, inventory[i].price);
+    }
+    printf("----------------------\n");
+}
+void searchDrug() {
+    char name[MAX_NAME_LEN];
+    printf("Enter drug name to search: ");
+    scanf("%s", name);
+    int found = 0;
+    for (int i = 0; i < count; i++) {
+        if (strcmp(inventory[i].name, name) == 0) {
+            printf("Found - ID: %d | Qty: %d | Price: ₹%.2f\n",
+                   inventory[i].id, inventory[i].quantity,
+                   inventory[i].price);
+            found = 1;
+        }
+    }
+    if (!found)
+        printf("Drug not found.\n");
+}
+void updateQuantity() {
+    int id, newQty;
+    printf("Enter drug ID to update: ");
+    scanf("%d", &id);
+    for (int i = 0; i < count; i++) {
+        if (inventory[i].id == id) {
+            printf("Current quantity: %d\n", inventory[i].quantity);
+            printf("Enter new quantity: ");
+            scanf("%d", &newQty);
+            inventory[i].quantity = newQty;
+            saveInventory();
+            printf("Quantity updated!\n");
+            return;
+        }
+    }
+    printf("Drug ID not found.\n");
+}
+void saveFeedback(int orderID) {
+    char feedback[200];
+    FILE *fp = fopen("feedback.txt", "a");
+    if (fp == NULL) {
+        printf("Error saving feedback.\n");
+        return;
+    }
+    getchar(); 
+    printf("💬 Please leave your feedback for Order ID ORD%d: ", orderID);
+    fgets(feedback, sizeof(feedback), stdin);
+    feedback[strcspn(feedback, "\n")] = 0;
+    fprintf(fp, "Order ID: ORD%d\nFeedback: %s\n--------------------------\n", orderID, feedback);
+    fclose(fp);
+    printf("✅ Thank you! Your feedback has been recorded.\n");
+}
+void takeOrder() {
+    char name[MAX_NAME_LEN];
+    int orderQty;
+    char address[100];
+    char deliveryTime[30];
+    char customerName[50];
+    char mobile[15];
+    const int LOW_STOCK_THRESHOLD = 10;
+    printf("Enter customer name: ");
+    getchar();
+    fgets(customerName, sizeof(customerName), stdin);
+    customerName[strcspn(customerName, "\n")] = 0;
+    printf("Enter mobile number: ");
+    scanf("%s", mobile);
+    printf("Enter drug name to order: ");
+    scanf("%s", name);
+    printf("Enter quantity to order: ");
+    scanf("%d", &orderQty);
+    for (int i = 0; i < count; i++) {
+        if (strcmp(inventory[i].name, name) == 0) {
+            if (inventory[i].quantity >= orderQty) {
+                getchar();
+                printf("Enter delivery address: ");
+                fgets(address, sizeof(address), stdin);
+                address[strcspn(address, "\n")] = 0;
+                printf("Enter preferred delivery time (e.g., 4:00 PM): ");
+                fgets(deliveryTime, sizeof(deliveryTime), stdin);
+                deliveryTime[strcspn(deliveryTime, "\n")] = 0;
+                inventory[i].quantity -= orderQty;
+                saveInventory();
+                int orderID = orderIDCounter++;
+                FILE *fp = fopen("orders.txt", "a");
+                if (fp != NULL) {
+                    fprintf(fp, "%d %s %s %d %.2f %s %s %s %s\n", orderID, customerName, inventory[i].name,
+                            orderQty, inventory[i].price * orderQty, address, deliveryTime, mobile, "Pending");
+                    fclose(fp);
+                }
+                printf("\n✅ Order placed successfully!\n");
+                printf("🆔 Order ID: ORD%d\n", orderID);
+                printf("👤 Customer: %s\n", customerName);
+                printf("📞 Mobile: %s\n", mobile);
+                printf("📦 Drug: %s\n", inventory[i].name);
+                printf("💰 Total Cost: ₹%.2f\n", inventory[i].price * orderQty);
+                printf("📍 Delivering to: %s\n", address);
+                printf("⏰ Delivery time: %s\n", deliveryTime);
+                printf("📦 Remaining quantity: %d\n", inventory[i].quantity);
+                if (inventory[i].quantity < LOW_STOCK_THRESHOLD) {
+                    printf("⚠  Warning: Low stock of %s! Only %d remaining.\n",
+                           inventory[i].name, inventory[i].quantity);
+                }
+                saveFeedback(orderID); 
+            } else {
+                printf("❌ Insufficient stock! Only %d available.\n", inventory[i].quantity);
+            }
+            return;
+        }
+    }
+    printf("❌ Drug not found.\n");
+}
+void viewOrders() {
+    FILE *fp = fopen("orders.txt", "r");
+    if (fp == NULL) {
+        printf("No orders found.\n");
+        return;
+    }
+    Order order;
+    int pending = 0, delivered = 0;
+    printf("\n--- Order List ---\n");
+    while (fscanf(fp, "%d %s %s %d %f %[^\n] %[^\n] %s %s\n",
+                  &order.orderID, order.customerName, order.drugName,
+                  &order.quantity, &order.totalCost,
+                  order.address, order.deliveryTime, order.mobile, order.status) == 9) {
+        printf("🆔 Order ID: ORD%d\n", order.orderID);
+        printf("👤 Customer: %s\n", order.customerName);
+        printf("📞 Mobile: %s\n", order.mobile);
+        printf("📦 Drug: %s | Qty: %d | Cost: ₹%.2f\n", order.drugName, order.quantity, order.totalCost);
+        printf("📍 Address: %s\n", order.address);
+        printf("⏰ Delivery Time: %s\n", order.deliveryTime);
+        printf("🚚 Status: %s\n", order.status);
+        printf("-----------------------------\n");
+        if (strcmp(order.status, "Pending") == 0) pending++;
+        else delivered++;
+    }
+    printf("📋 Total Orders: %d | ✅ Delivered: %d | ⏳ Pending: %d\n", pending + delivered, delivered, pending);
+    fclose(fp);
+}
+void viewPendingOrders() {
+    FILE *fp = fopen("orders.txt", "r");
+    if (fp == NULL) {
+        printf("No orders found.\n");
+        return;
+    }
+    Order order;
+    int found = 0;
+    printf("\n--- Pending Orders ---\n");
+    while (fscanf(fp, "%d %s %s %d %f %[^\n] %[^\n] %s %s\n",
+                  &order.orderID, order.customerName, order.drugName,
+                  &order.quantity, &order.totalCost,
+                  order.address, order.deliveryTime, order.mobile, order.status) == 9) {
+        if (strcmp(order.status, "Pending") == 0) {
+            found = 1;
+            printf("🆔 Order ID: ORD%d\n", order.orderID);
+            printf("👤 Customer: %s\n", order.customerName);
+            printf("📞 Mobile: %s\n", order.mobile);
+            printf("📦 Drug: %s | Qty: %d | Cost: ₹%.2f\n", order.drugName, order.quantity, order.totalCost);
+            printf("📍 Address: %s\n", order.address);
+            printf("⏰ Delivery Time: %s\n", order.deliveryTime);
+            printf("🚚 Status: %s\n", order.status);
+            printf("-----------------------------\n");
+        }
+    }
+    if (!found) {
+        printf("🎉 No pending orders found.\n");
+    }
+    fclose(fp);
+}
+void viewFeedback() {
+    FILE *fp = fopen("feedback.txt", "r");
+
+    if (fp == NULL) {
+        printf("No feedback found.\n");
+        return;
+    }
+    char line[256];
+    printf("\n--- Customer Feedback ---\n");
+    while (fgets(line, sizeof(line), fp)) {
+        printf("%s", line);
+    }
+    fclose(fp);
+}
+int main() {
+    loadInventory();
+    int choice;
+    do {
+        printf("\n--- Drug Inventory System ---\n");
+        printf("1. Add Drug\n");
+        printf("2. View Inventory\n");
+        printf("3. Search Drug\n");
+        printf("4. Update Quantity\n");
+        printf("5. Take Order\n");
+        printf("6. View All Orders\n");
+        printf("7. View Pending Orders\n");
+        printf("8. View Feedback\n");
+        printf("9. Exit\n");
+        printf("Enter choice: ");
+        scanf("%d", &choice);
+        switch (choice) {
+            case 1: addDrug(); break;
+            case 2: viewInventory(); break;
+            case 3: searchDrug(); break;
+            case 4: updateQuantity(); break;
+            case 5: takeOrder(); break;
+            case 6: viewOrders(); break;
+            case 7: viewPendingOrders(); break;
+            case 8: viewFeedback(); break;
+            case 9: printf("Exiting...\n"); break;
+            default: printf("Invalid choice. Try again.\n");
+        }
+
+    } while (choice != 9);
+    return 0;
+}
